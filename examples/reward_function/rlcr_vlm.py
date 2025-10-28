@@ -2,7 +2,9 @@ import re
 from typing import Any
 from mathruler.grader import extract_boxed_content, grade_answer
 import statistics
-
+import math
+from sklearn.metrics import roc_auc_score
+import numpy as np
 
 def extract_confidence(response: str) -> float:
     """从 <confidence> 标签中提取置信度（1–10），并归一化到 [0,1]"""
@@ -40,18 +42,6 @@ def format_reward(response: str) -> float:
             return 0.5  # 格式正确但置信度不在合法范围
     except ValueError:
         return 0.0  # 置信度内容不是数字
-    
-# def format_reward(response: str) -> float:
-#     """
-#     检测是否符合以下格式：
-#       <think>...</think> + \boxed{} + <think>（置信度分析）</think> + <confidence>
-#     """
-#     pattern = re.compile(
-#         r"<think>.*?</think>.*?\\boxed\{.*?\}.*?<think>.*?</think>.*?<confidence>.*?</confidence>",
-#         re.DOTALL,
-#     )
-#     format_match = re.fullmatch(pattern, response)
-#     return 1.0 if format_match else 0.0
 
 
 def accuracy_reward(response: str, ground_truth: str) -> float:
@@ -59,13 +49,6 @@ def accuracy_reward(response: str, ground_truth: str) -> float:
     answer = extract_boxed_content(response)
     return 1.0 if grade_answer(answer, ground_truth) else 0.0
 
-
-import re
-import math
-import statistics
-from typing import Any
-from sklearn.metrics import roc_auc_score
-import numpy as np
 
 def compute_score(
     reward_inputs: list[dict[str, Any]],
