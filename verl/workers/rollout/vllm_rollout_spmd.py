@@ -92,7 +92,9 @@ class vLLMRollout(BaseRollout):
         self.pad_token_id = tokenizer.pad_token_id
         self.use_tqdm = (self.rank == 0) and (not config.disable_tqdm)
         if config.tensor_parallel_size > torch.distributed.get_world_size():
-            print(f"world size: {torch.distributed.get_world_size()}, tensor parallel size: {config.tensor_parallel_size}")
+            print(
+                f"world size: {torch.distributed.get_world_size()}, tensor parallel size: {config.tensor_parallel_size}"
+            )
             raise ValueError("Tensor parallelism size should be less than world size.")
 
         if config.max_num_batched_tokens < config.prompt_length + config.response_length:

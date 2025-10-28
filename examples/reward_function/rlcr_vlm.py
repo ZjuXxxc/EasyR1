@@ -1,18 +1,21 @@
-import re
-from typing import Any
-from mathruler.grader import extract_boxed_content, grade_answer
-import statistics
 import math
-from sklearn.metrics import roc_auc_score
+import re
+import statistics
+from typing import Any
+
 import numpy as np
+from mathruler.grader import extract_boxed_content, grade_answer
+from sklearn.metrics import roc_auc_score
+
 
 def extract_confidence(response: str) -> float:
     """从 <confidence> 标签中提取置信度（1–10），并归一化到 [0,1]"""
     match = re.search(r"<confidence>(\d+(?:\.\d+)?)</confidence>", response)
     if match:
-        c = float(match.group(1)) 
+        c = float(match.group(1))
         return max(0.0, min((c / 10.0) ** 1.3, 1.0))  # 限制到 [0,1]
     return 0.5  # 若未提供则视为中性置信度
+
 
 def format_reward(response: str) -> float:
     """
@@ -115,7 +118,7 @@ def compute_score(
         I = I_list[idx]
         c = c_list[idx]
         format_score = format_list[idx]
-        brier_score = -(c - I) ** 2
+        brier_score = -((c - I) ** 2)
         overall = I + brier_weight * brier_score + format_weight * format_score
 
         scores.append(
@@ -137,6 +140,7 @@ def compute_score(
         )
 
     return scores
+
 
 def rlcr_passk_score(
     reward_inputs: list[dict[str, Any]],
@@ -182,21 +186,22 @@ def rlcr_passk_score(
         c = confidences[i]
 
         format_score = format_reward(response)
-        brier_score = - (c - mean_I) ** 2
+        brier_score = -((c - mean_I) ** 2)
 
         # 如果想惩罚confidence方差，可以加进去
         overall = I + brier_weight * brier_score + format_weight * format_score - var_weight * var_c
 
-        scores.append({
-            "overall": overall,
-            "indicator": I,
-            "brier": brier_score,
-            "confidence": c,
-            "format": format_score,
-            "mean_accuracy": mean_I,
-            "mean_confidence": mean_c,
-            "confidence_variance": var_c,
-        })
+        scores.append(
+            {
+                "overall": overall,
+                "indicator": I,
+                "brier": brier_score,
+                "confidence": c,
+                "format": format_score,
+                "mean_accuracy": mean_I,
+                "mean_confidence": mean_c,
+                "confidence_variance": var_c,
+            }
+        )
 
     return scores
-
