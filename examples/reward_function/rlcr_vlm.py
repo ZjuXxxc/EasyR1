@@ -19,32 +19,47 @@ def extract_confidence(response: str) -> float:
 
 def format_reward(response: str) -> float:
     """
-    检测是否符合以下完整格式：
-      <think>...</think> + \\boxed{...} + <think>（置信度分析）</think> + <confidence>score</confidence>
-
-    额外要求：
-      - confidence 的分数必须是 1–10 之间的浮点或整数
+    检测是否包含且仅包含：
+      <think>...</think> + \boxed{...} + <think>...</think> + <confidence>score</confidence>
+    - 顺序必须正确
+    - 每种标签只能出现一次
+    - 允许前后和中间有任意文本
+    - confidence ∈ [1, 10]
     """
-    # 匹配完整结构
-    pattern = re.compile(
-        r"<think>.*?</think>.*?\\boxed\{.*?\}.*?<think>.*?</think>.*?<confidence>(.*?)</confidence>",
-        re.DOTALL,
-    )
-    match = re.fullmatch(pattern, response)
 
+    # 匹配出四个核心部分（按顺序）
+    pattern = re.compile(
+        r"<think>.*?</think>.*?"      # 第一个 think
+        r"\\boxed\{.*?\}.*?"          # boxed
+        r"<think>.*?</think>.*?"      # 第二个 think
+        r"<confidence>(.*?)</confidence>",  # confidence 值
+        re.DOTALL
+    )
+
+    match = pattern.search(response)  # ✅ 用 search 而不是 fullmatch
     if not match:
-        return 0.0  # 格式不完整
+        print("❌ 未按要求顺序出现四个部分")
+        return 0.0
+
+    # 检查数量是否唯一
+    think_count = len(re.findall(r"<think>.*?</think>", response, re.DOTALL))
+    boxed_count = len(re.findall(r"\\boxed\{.*?\}", response))
+    conf_count = len(re.findall(r"<confidence>.*?</confidence>", response, re.DOTALL))
+
+    if not (think_count == 2 and boxed_count == 1 and conf_count == 1):
+        print(f"❌ 数量不对: think={think_count}, boxed={boxed_count}, confidence={conf_count}")
+        return 0.0
 
     # 提取 confidence 内容并验证数值范围
     try:
         conf_str = match.group(1).strip()
         conf_value = float(conf_str)
         if 1.0 <= conf_value <= 10.0:
-            return 1.0  # 格式 + 置信度均正确
+            return 1.0  # 格式正确 + 合法范围
         else:
-            return 0.5  # 格式正确但置信度不在合法范围
+            return 0.5  # 格式正确但数值越界
     except ValueError:
-        return 0.0  # 置信度内容不是数字
+        return 0.0
 
 
 def accuracy_reward(response: str, ground_truth: str) -> float:
