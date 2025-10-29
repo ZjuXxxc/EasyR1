@@ -1,7 +1,8 @@
 import re
-from typing import Any
-from mathruler.grader import extract_boxed_content, grade_answer
 import statistics
+from typing import Any
+
+from mathruler.grader import extract_boxed_content, grade_answer
 
 
 def extract_confidence(response: str) -> float:
@@ -71,7 +72,7 @@ def compute_score(
         I = I_list[idx]
         c = c_list[idx]
         format_score = format_list[idx]
-        brier_score = -(c - I) ** 2
+        brier_score = -((c - I) ** 2)
         overall = I + brier_weight * brier_score + format_weight * format_score
 
         scores.append(

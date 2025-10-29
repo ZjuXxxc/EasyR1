@@ -50,9 +50,7 @@ def compute_score(reward_inputs: list[dict[str, Any]], format_weight: float = 0.
 
 
 def rlcr_score(
-    reward_inputs: list[dict[str, Any]],
-    brier_weight: float = 0.5,
-    format_weight: float = 0.5
+    reward_inputs: list[dict[str, Any]], brier_weight: float = 0.5, format_weight: float = 0.5
 ) -> list[dict[str, float]]:
     """
     Compute RLCR reward based on three components:
@@ -80,39 +78,16 @@ def rlcr_score(
         format_score = format_reward(response)
 
         # 4️⃣ Brier score term
-        brier_score = - (c - I) ** 2
+        brier_score = -((c - I) ** 2)
 
         # 5️⃣ Combine overall score
         overall = I + brier_weight * brier_score + format_weight * format_score
 
-        scores.append({
-            "overall": overall,
-            "indicator": I,
-            "brier": brier_score,
-            "confidence": c,
-            "format": format_score
-        })
+        scores.append(
+            {"overall": overall, "indicator": I, "brier": brier_score, "confidence": c, "format": format_score}
+        )
 
     return scores
-
-import re
-from typing import Any
-from mathruler.grader import extract_boxed_content, grade_answer
-
-
-def format_reward(response: str) -> float:
-    """检测是否符合 <think>...</think> + \boxed{} + <confidence> 格式"""
-    pattern = re.compile(
-        r"<think>.*?</think>.*?\\boxed\{.*?\}.*?<confidence>.*?</confidence>",
-        re.DOTALL,
-    )
-    return 1.0 if re.fullmatch(pattern, response) else 0.0
-
-
-def accuracy_reward(response: str, ground_truth: str) -> float:
-    """提取 boxed 内容并判定是否正确"""
-    answer = extract_boxed_content(response)
-    return 1.0 if grade_answer(answer, ground_truth) else 0.0
 
 
 def rlcr_passk_score(
@@ -158,18 +133,20 @@ def rlcr_passk_score(
         format_score = format_reward(response)
 
         # Brier term uses group-level mean accuracy
-        brier_score = - (c - mean_I) ** 2
+        brier_score = -((c - mean_I) ** 2)
 
         # Combine total
         overall = I + brier_weight * brier_score + format_weight * format_score
 
-        scores.append({
-            "overall": overall,
-            "indicator": I,
-            "brier": brier_score,
-            "confidence": c,
-            "format": format_score,
-            "mean_accuracy": mean_I
-        })
+        scores.append(
+            {
+                "overall": overall,
+                "indicator": I,
+                "brier": brier_score,
+                "confidence": c,
+                "format": format_score,
+                "mean_accuracy": mean_I,
+            }
+        )
 
     return scores

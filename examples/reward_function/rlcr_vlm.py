@@ -1,57 +1,65 @@
+import math
 import re
-from typing import Any
-from mathruler.grader import extract_boxed_content, grade_answer
 import statistics
+from typing import Any
+
+import numpy as np
+from mathruler.grader import extract_boxed_content, grade_answer
+from sklearn.metrics import roc_auc_score
 
 
 def extract_confidence(response: str) -> float:
     """从 <confidence> 标签中提取置信度（1–10），并归一化到 [0,1]"""
     match = re.search(r"<confidence>(\d+(?:\.\d+)?)</confidence>", response)
     if match:
-        c = float(match.group(1)) 
+        c = float(match.group(1))
         return max(0.0, min((c / 10.0) ** 1.3, 1.0))  # 限制到 [0,1]
     return 0.5  # 若未提供则视为中性置信度
 
+
 def format_reward(response: str) -> float:
     """
-    检测是否符合以下完整格式：
-      <think>...</think> + \\boxed{...} + <think>（置信度分析）</think> + <confidence>score</confidence>
-
-    额外要求：
-      - confidence 的分数必须是 1–10 之间的浮点或整数
+    检测是否包含且仅包含：
+      <think>...</think> + \boxed{...} + <think>...</think> + <confidence>score</confidence>
+    - 顺序必须正确
+    - 每种标签只能出现一次
+    - 允许前后和中间有任意文本
+    - confidence ∈ [1, 10]
     """
-    # 匹配完整结构
-    pattern = re.compile(
-        r"<think>.*?</think>.*?\\boxed\{.*?\}.*?<think>.*?</think>.*?<confidence>(.*?)</confidence>",
-        re.DOTALL,
-    )
-    match = re.fullmatch(pattern, response)
 
+    # 匹配出四个核心部分（按顺序）
+    pattern = re.compile(
+        r"<think>.*?</think>.*?"      # 第一个 think
+        r"\\boxed\{.*?\}.*?"          # boxed
+        r"<think>.*?</think>.*?"      # 第二个 think
+        r"<confidence>(.*?)</confidence>",  # confidence 值
+        re.DOTALL
+    )
+
+    match = pattern.search(response)  # ✅ 用 search 而不是 fullmatch
     if not match:
-        return 0.0  # 格式不完整
+        print("❌ 未按要求顺序出现四个部分")
+        return 0.0
+
+    # 检查数量是否唯一
+    think_count = len(re.findall(r"<think>.*?</think>", response, re.DOTALL))
+    boxed_count = len(re.findall(r"\\boxed\{.*?\}", response))
+    conf_count = len(re.findall(r"<confidence>.*?</confidence>", response, re.DOTALL))
+
+    if not (think_count == 2 and boxed_count == 1 and conf_count == 1):
+        print(f"❌ 数量不对: think={think_count}, boxed={boxed_count}, confidence={conf_count}")
+        return 0.0
 
     # 提取 confidence 内容并验证数值范围
     try:
         conf_str = match.group(1).strip()
         conf_value = float(conf_str)
         if 1.0 <= conf_value <= 10.0:
-            return 1.0  # 格式 + 置信度均正确
+            return 1.0  # 格式正确 + 合法范围
         else:
-            return 0.5  # 格式正确但置信度不在合法范围
+            return 0.5  # 格式正确但数值越界
     except ValueError:
-        return 0.0  # 置信度内容不是数字
-    
-# def format_reward(response: str) -> float:
-#     """
-#     检测是否符合以下格式：
-#       <think>...</think> + \boxed{} + <think>（置信度分析）</think> + <confidence>
-#     """
-#     pattern = re.compile(
-#         r"<think>.*?</think>.*?\\boxed\{.*?\}.*?<think>.*?</think>.*?<confidence>.*?</confidence>",
-#         re.DOTALL,
-#     )
-#     format_match = re.fullmatch(pattern, response)
-#     return 1.0 if format_match else 0.0
+        return 0.0
 
 
 def accuracy_reward(response: str, ground_truth: str) -> float:
@@ -59,13 +67,6 @@ def accuracy_reward(response: str, ground_truth: str) -> float:
     answer = extract_boxed_content(response)
     return 1.0 if grade_answer(answer, ground_truth) else 0.0
 
-
-import re
-import math
-import statistics
-from typing import Any
-from sklearn.metrics import roc_auc_score
-import numpy as np
 
 def compute_score(
     reward_inputs: list[dict[str, Any]],
@@ -132,7 +133,7 @@ def compute_score(
         I = I_list[idx]
         c = c_list[idx]
         format_score = format_list[idx]
-        brier_score = -(c - I) ** 2
+        brier_score = -((c - I) ** 2)
         overall = I + brier_weight * brier_score + format_weight * format_score
 
         scores.append(
@@ -154,6 +155,7 @@ def compute_score(
         )
 
     return scores
+
 
 def rlcr_passk_score(
     reward_inputs: list[dict[str, Any]],
@@ -199,21 +201,22 @@ def rlcr_passk_score(
         c = confidences[i]
 
         format_score = format_reward(response)
-        brier_score = - (c - mean_I) ** 2
+        brier_score = -((c - mean_I) ** 2)
 
         # 如果想惩罚confidence方差，可以加进去
         overall = I + brier_weight * brier_score + format_weight * format_score - var_weight * var_c
 
-        scores.append({
-            "overall": overall,
-            "indicator": I,
-            "brier": brier_score,
-            "confidence": c,
-            "format": format_score,
-            "mean_accuracy": mean_I,
-            "mean_confidence": mean_c,
-            "confidence_variance": var_c,
-        })
+        scores.append(
+            {
+                "overall": overall,
+                "indicator": I,
+                "brier": brier_score,
+                "confidence": c,
+                "format": format_score,
+                "mean_accuracy": mean_I,
+                "mean_confidence": mean_c,
+                "confidence_variance": var_c,
+            }
+        )
 
     return scores
-
